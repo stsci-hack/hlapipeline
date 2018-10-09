@@ -91,22 +91,30 @@ from astropy.table import Table
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
-import starmatch_hist
+# import starmatch_hist   Replace with Tweakreg 2d-histogram
 import sys,os
 #-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 def computeFlagStats(matchedRA,plotGen,plot_title,verbose):
     """
     Compute and report statistics on the differences in flagging.
 
-    :param matchedRA: A 2 x len(refLines) sized numpy array. Column 1: matched reference values. Column 2: The corresponding matched comparision values
-    :param plotGen: Generate plots and display them to the screen (True/False)?
-    :param plot_title: text string that will be used in plot title.
-    :param verbose: display verbose output?
-    :type matchedRA: numpy.ndarray
-    :type plotGen: Boolean
-    :type plot_title: string
-    :type verbose: Boolean
-    :return: Regression test status: Either "OK" or "FAILURE".
+    Parameters
+    -----------
+    matchedRA : numpy.ndarray
+        A 2 x len(refLines) sized numpy array. 
+        Column 1: matched reference values. 
+        Column 2: The corresponding matched comparision values
+    plotGen : Boolean 
+        Generate plots and display them to the screen (True/False)?
+    plot_title : string
+        Text string that will be used in plot title.
+    verbose : Boolean 
+        Display verbose output?
+    
+    Returns
+    --------
+    return : string
+        Regression test status: Either "OK" or "FAILURE".
     """
     print ">>>>>> Comparision - reference sourcelist %s differences <<<<<<" % (plot_title)
     #set up arrays to count stuff up
