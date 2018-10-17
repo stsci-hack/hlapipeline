@@ -8,6 +8,8 @@ from astropy.utils.data import conf
 from ci_watson.artifactory_helpers import get_bigdata
 from ci_watson.artifactory_helpers import compare_outputs
 
+from hlapipeline.utils.astroquery_utils import retrieve_observation
+
 # Base classes for actual tests.
 # NOTE: Named in a way so pytest will not pick them up here.
 class BaseTest(object):
@@ -88,14 +90,18 @@ class BaseTest(object):
         `artifactory_helpers/get_bigdata()`.
         This will then return the full path to the local copy of the file.
         """
-        # If user has specified action for no_copy, apply it with
-        # default behavior being whatever was defined in the base class.
-        docopy = kwargs.get('docopy', self.docopy)
-        local_file = get_bigdata(*self.get_input_path(),
-                                 *args,
-                                 docopy=docopy)
+        if len(args[0]) == 9: # Only a rootname provided
+            local_files = retrieve_observation(args[0])
+        else:
+            # If user has specified action for no_copy, apply it with
+            # default behavior being whatever was defined in the base class.
+            docopy = kwargs.get('docopy', self.docopy)
+            local_files = get_bigdata(*self.get_input_path(),
+                                     *args,
+                                     docopy=docopy)
+            local_files = list(local_files)
 
-        return local_file
+        return local_files
 
     def raw_from_asn(self, asn_file):
         """
