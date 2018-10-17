@@ -99,7 +99,7 @@ class BaseTest(object):
             local_files = get_bigdata(*self.get_input_path(),
                                      *args,
                                      docopy=docopy)
-            local_files = list(local_files)
+            local_files = [local_files]
 
         return local_files
 
