@@ -87,8 +87,15 @@ class BaseTest(object):
     def get_data(self, *args, **kwargs):
         """
         Download `filename` into working directory using
-        `artifactory_helpers/get_bigdata()`.
-        This will then return the full path to the local copy of the file.
+        `artifactory_helpers/get_bigdata()` or 
+        `astroquery_utils.retrieve_observation`.  Use of `astroquery_utils`
+	will allow getting data directly from MAST via astroquery.
+
+        Returns
+        --------
+        local_files : list
+            This will return a list of all the files downloaded with 
+            the full path to the local copy of the file.
         """
         if len(args[0]) == 9: # Only a rootname provided
             local_files = retrieve_observation(args[0])
