@@ -89,11 +89,11 @@ class BaseHLATest(BaseTest):
                     # Start by checking to see whether IRAF variable *ref/*tab
                     # has been added to os.environ
                     refdir, refname = ref_file.split(refsep)
-                    if refdir not in os.environ or os.environ[refdir] != self.curdir+os.sep:
+                    if refdir not in os.environ: 
                         os.environ[refdir] = self.curdir + os.sep
 
                     # Download from FTP, if applicable
-                    if self.use_ftp_crds and refname not in os.listdir(self.curdir):
+                    if self.use_ftp_crds: 
                         download_crds(ref_file, timeout=self.timeout)
         return filenames
 
