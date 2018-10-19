@@ -1,3 +1,5 @@
+.. _installation:
+
 .. highlight:: shell
 
 ============
@@ -32,13 +34,13 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/stsci-hack/hlapipeline
+    $ git clone git://github.com/spacetelescope/hlapipeline
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl  -OL https://github.com/stsci-hack/hlapipeline/tarball/master
+    $ curl  -OL https://github.com/spacetelescope/hlapipeline/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +49,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/stsci-hack/hlapipeline
-.. _tarball: https://github.com/stsci-hack/hlapipeline/tarball/master
+.. _Github repo: https://github.com/spacetelescope/hlapipeline
+.. _tarball: https://github.com/spacetelescope/hlapipeline/tarball/master

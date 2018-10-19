@@ -48,8 +48,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'HLA in the Pipeline'
-copyright = u"2018, Warren J. Hack"
-author = u"Warren J. Hack"
+copyright = u"2018, STScI"
+author = u"Warren J. Hack, Michele De La Pena, Michael Dulude, Steven Crawford"
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
@@ -95,7 +95,7 @@ html_theme = 'alabaster'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+#html_static_path = ['_static']
 
 
 # -- Options for HTMLHelp output ---------------------------------------
@@ -130,7 +130,7 @@ latex_elements = {
 latex_documents = [
     (master_doc, 'hlapipeline.tex',
      u'HLA in the Pipeline Documentation',
-     u'Warren J. Hack', 'manual'),
+     u'STScI', 'manual'),
 ]
 
 

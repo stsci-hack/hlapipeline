@@ -12,9 +12,7 @@ HLA in the Pipeline
 .. image:: https://readthedocs.org/projects/hlapipeline/badge/?version=latest
         :target: https://hlapipeline.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
-
-
-
+ 
 
 Code for implementing HLA-type processing in the HST Pipeline
 
@@ -23,10 +21,16 @@ Code for implementing HLA-type processing in the HST Pipeline
 * Documentation: https://hlapipeline.readthedocs.io.
 
 
+Installation
+-------------
+
+.. include:: installation.rst
+
 Features
 --------
 
 * TODO
+
 
 Credits
 -------
