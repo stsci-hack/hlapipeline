@@ -8,6 +8,8 @@ import shutil
 import sys
 import importlib
 from setuptools import setup, find_packages
+from subprocess import check_call, CalledProcessError
+from setuptools import setup, find_packages, _install_setup_requires
 
 requirements = ['Click>=6.0', 'astropy', 'scipy', 'matplotlib', \
                 'photutils', 'pyyaml', 'astroquery',\
@@ -15,7 +17,7 @@ requirements = ['Click>=6.0', 'astropy', 'scipy', 'matplotlib', \
                 'stsci_rtd_theme','stsci.tools',\
                 'stwcs','setuptools']
 
-setup_requirements = ['pytest-runner', 'sphinx']
+setup_requirements = ['sphinx']
 
 test_requirements = ['pytest', 'requests_mock', 'ci_watson']
 
