@@ -82,7 +82,7 @@ for (numpy_ver in matrix_numpy) {
                         'TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory']
     install.build_cmds = [
         // Install python @ version
-        "${CONDA_CREATE} -n ${python_ver} ${DEPS_PYTHON} stsci-hst",
+        "${CONDA_CREATE} -n ${python_ver} ${DEPS_PYTHON} stsci",
 
         // Install custom required packages @ version
         "${WRAPPER} ${PIP_INST} ${DEPS_EX}",
