@@ -18,7 +18,7 @@ TEST_DEPS = "pytest pytest-remotedata stwcs git+https://github.com/spacetelescop
 
 // Conda needs explicit dependencies listed
 DEPS = "fitsblender graphviz nictools numpydoc matplotlib drizzlepac\
-        pytest pytest-remotedata photutils \
+        pytest pytest-remotedata photutils astroquery\
         scipy sphinx sphinx_rtd_theme \
         stsci_rtd_theme stsci.tools\
         stwcs setuptools python"
