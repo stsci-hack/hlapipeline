@@ -12,7 +12,7 @@ HLA in the Pipeline
 .. image:: https://readthedocs.org/projects/hlapipeline/badge/?version=latest
         :target: https://hlapipeline.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
- 
+
 
 Code for implementing HLA-type processing in the HST Pipeline
 
@@ -35,7 +35,7 @@ Features
 Credits
 -------
 
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
+This package was created with Cookiecutter_ and the `spacetelescope/stsci-package-template`_ project template.
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+.. _`spacetelescope/stsci-package-template`: https://github.com/spacetelescope/stsci-package-template.

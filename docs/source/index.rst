@@ -11,7 +11,8 @@ Welcome to HLA in the Pipeline's documentation!
    contributing
    authors
    history
-
+   CODE_OF_CONDUCT
+   
 Indices and tables
 ==================
 * :ref:`genindex`

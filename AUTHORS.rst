@@ -10,4 +10,6 @@ Development Lead
 Contributors
 ------------
 
-None yet. Why not be the first?
+* Michele De La Pena <mdelapena@stsci.edu>
+* Michael Dulude <dulude@stsci.edu>
+* Steven Crawford <scrawford@stsci.edu>

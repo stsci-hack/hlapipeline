@@ -2,13 +2,9 @@
 
 .. highlight:: shell
 
-============
-Installation
-============
-
 
 Stable release
---------------
+===============
 
 To install HLA in the Pipeline, run this command in your terminal:
 
@@ -26,7 +22,7 @@ you through the process.
 
 
 From sources
-------------
+===============
 
 The sources for HLA in the Pipeline can be downloaded from the `Github repo`_.
 

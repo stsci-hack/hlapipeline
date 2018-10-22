@@ -5,7 +5,9 @@ Contributing
 ============
 
 Contributions are welcome, and they are greatly appreciated! Every little bit
-helps, and credit will always be given.
+helps, and credit will always be given. This package follows the Spacetelescope
+:ref:`Code of Conduct <code-of-conduct>` which strives to provide a welcoming community
+to all of our users and contributors.
 
 You can contribute in many ways:
 
@@ -15,7 +17,7 @@ Types of Contributions
 Report Bugs
 ~~~~~~~~~~~
 
-Report bugs at https://github.com/stsci-hack/hlapipeline/issues.
+Report bugs at https://github.com/spacetelescope/hlapipeline/issues.
 
 If you are reporting a bug, please include:
 
@@ -45,7 +47,7 @@ articles, and such.
 Submit Feedback
 ~~~~~~~~~~~~~~~
 
-The best way to send feedback is to file an issue at https://github.com/stsci-hack/hlapipeline/issues.
+The best way to send feedback is to file an issue at https://github.com/spacetelescope/hlapipeline/issues.
 
 If you are proposing a feature:
 
@@ -103,7 +105,7 @@ Before you submit a pull request, check that it meets these guidelines:
    your new functionality into a function with a docstring, and add the
    feature to the list in README.rst.
 3. The pull request should work for Python 2.7, 3.4, 3.5 and 3.6, and for PyPy. Check
-   https://travis-ci.org/stsci-hack/hlapipeline/pull_requests
+   https://travis-ci.org/spacetelescope/hlapipeline/pull_requests
    and make sure that the tests pass for all supported Python versions.
 
 Tips
@@ -112,17 +114,3 @@ Tips
 To run a subset of tests::
 
 $ py.test tests.test_hlapipeline
-
-
-Deploying
----------
-
-A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including an entry in HISTORY.rst).
-Then run::
-
-$ bumpversion patch # possible: major / minor / patch
-$ git push
-$ git push --tags
-
-Travis will then deploy to PyPI if tests pass.

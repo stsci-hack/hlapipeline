@@ -2,14 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """The setup script."""
+import glob
 import os
-import pkgutil
-import shutil
 import sys
-import importlib
-from setuptools import setup, find_packages
-from subprocess import check_call, CalledProcessError
-from setuptools import setup, find_packages, _install_setup_requires
 
 requirements = ['Click>=6.0', 'astropy', 'scipy', 'matplotlib', \
                 'photutils', 'pyyaml', 'astroquery',\
@@ -17,83 +12,125 @@ requirements = ['Click>=6.0', 'astropy', 'scipy', 'matplotlib', \
                 'stsci_rtd_theme','stsci.tools',\
                 'stwcs','setuptools']
 
-setup_requirements = ['sphinx']
-
 test_requirements = ['pytest', 'requests_mock', 'ci_watson']
 
+# Get some values from the setup.cfg
+try:
+    from ConfigParser import ConfigParser
+except ImportError:
+    from configparser import ConfigParser
+conf = ConfigParser()
+conf.read(['setup.cfg'])
+metadata = dict(conf.items('metadata'))
 
-if not pkgutil.find_loader('relic'):
-    relic_local = os.path.exists('relic')
-    relic_submodule = (relic_local and
-                       os.path.exists('.gitmodules') and
-                       not os.listdir('relic'))
-    try:
-        if relic_submodule:
-            check_call(['git', 'submodule', 'update', '--init', '--recursive'])
-        elif not relic_local:
-            check_call(['git', 'clone', 'https://github.com/spacetelescope/relic.git'])
+PACKAGENAME = metadata.get('package_name', '')
+DESCRIPTION = metadata.get('description', '')
+AUTHOR = metadata.get('author', '')
+AUTHOR_EMAIL = metadata.get('author_email', 'help@stsci.edu')
+LICENSE = metadata.get('license', 'unknown')
+URL = metadata.get('url', 'http://github.com/spacetelescope')
+__minimum_python_version__ = metadata.get('minimum_python_version', '3.5')
 
-        sys.path.insert(1, 'relic')
-    except CalledProcessError as e:
-        print(e)
-        exit(1)
+# Enforce Python version check - this is the same check as in __init__.py but
+# this one has to happen before importing ah_bootstrap.
+if sys.version_info < tuple((int(val) for val in __minimum_python_version__.split('.'))):
+    sys.stderr.write("ERROR: hlapipeline requires Python {} or later\n".format(__minimum_python_version__))
+    sys.exit(1)
+# Import ah_bootstrap after the python version validation
 
-import relic.release
+import ah_bootstrap
+from setuptools import setup
 
-PACKAGENAME = 'hlapipeline'
+import builtins
+builtins._ASTROPY_SETUP_ = True
 
-# Due to overriding `install` and `build_sphinx` we need to download
-# setup_requires dependencies before reaching `setup()`. This allows
-# `sphinx` to exist before the `BuildSphinx` class is injected.
-_install_setup_requires(dict(setup_requires=setup_requirements))
+from astropy_helpers.setup_helpers import (
+    register_commands, get_debug_option, get_package_info)
+from astropy_helpers.git_helpers import get_git_devstr
+from astropy_helpers.version_helpers import generate_version_py
 
-for dep_pkg in setup_requirements:
-    try:
-        importlib.import_module(dep_pkg)
-    except ImportError:
-        print("{0} is required in order to install '{1}'.\n"
-              "Please install {0} first.".format(dep_pkg, PACKAGENAME),
-              file=sys.stderr)
-        exit(1)
-from sphinx.cmd.build import build_main
-from sphinx.setup_command import BuildDoc
 
-version = relic.release.get_info()
-relic.release.write_template(version, PACKAGENAME)
+# order of priority for long_description:
+#   (1) set in setup.cfg,
+#   (2) load LONG_DESCRIPTION.rst,
+#   (3) load README.rst,
+#   (4) package docstring
+readme_glob = 'README*'
+_cfg_long_description = metadata.get('long_description', '')
+if _cfg_long_description:
+    LONG_DESCRIPTION = _cfg_long_description
 
-class BuildSphinx(BuildDoc):
-    """Build Sphinx documentation after compiling C extensions"""
+elif os.path.exists('LONG_DESCRIPTION.rst'):
+    with open('LONG_DESCRIPTION.rst') as f:
+        LONG_DESCRIPTION = f.read()
 
-    description = 'Build Sphinx documentation'
+elif len(glob.glob(readme_glob)) > 0:
+    with open(glob.glob(readme_glob)[0]) as f:
+        LONG_DESCRIPTION = f.read()
 
-    def initialize_options(self):
-        BuildDoc.initialize_options(self)
+else:
+    # Get the long description from the package's docstring
+    __import__(PACKAGENAME)
+    package = sys.modules[PACKAGENAME]
+    LONG_DESCRIPTION = package.__doc__
 
-    def finalize_options(self):
-        BuildDoc.finalize_options(self)
+# Store the package name in a built-in variable so it's easy
+# to get from other parts of the setup infrastructure
+builtins._ASTROPY_PACKAGE_NAME_ = PACKAGENAME
+# VERSION should be PEP386 compatible (http://www.python.org/dev/peps/pep-0386)
+VERSION = metadata.get('version','0.1.dev')
 
-    def run(self):
-        build_cmd = self.reinitialize_command('build_ext')
-        build_cmd.inplace = 1
-        self.run_command('build_ext')
-        build_main(['-b', 'html', 'doc/source', 'build/sphinx/html'])
+# Indicates if this version is a release version
+RELEASE = 'dev' not in VERSION
 
-        # Bundle documentation inside of drizzlepac
-        if os.path.exists(docs_compiled_src):
-            if os.path.exists(docs_compiled_dest):
-                shutil.rmtree(docs_compiled_dest)
+if not RELEASE:
+    VERSION += get_git_devstr(False)
 
-            shutil.copytree(docs_compiled_src, docs_compiled_dest)
+# Populate the dict of setup command overrides; this should be done before
+# invoking any other functionality from distutils since it can potentially
+# modify distutils' behavior.
+cmdclassd = register_commands(PACKAGENAME, VERSION, RELEASE)
 
-with open('README.rst') as readme_file:
-    readme = readme_file.read()
+# Freeze build information in version.py
+generate_version_py(PACKAGENAME, VERSION, RELEASE,
+                    get_debug_option(PACKAGENAME))
 
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
+# Treat everything in scripts except README* as a script to be installed
+scripts = [fname for fname in glob.glob(os.path.join('scripts', '*'))
+           if not os.path.basename(fname).startswith('README')]
+
+# Get configuration information from all of the various subpackages.
+# See the docstring for setup_helpers.update_package_files for more
+# details.
+package_info = get_package_info()
+
+# Add the project-global data
+package_info['package_data'].setdefault(PACKAGENAME, [])
+package_info['package_data'][PACKAGENAME].append('data/*')
+# Define entry points for command-line scripts
+entry_points = {'console_scripts': []}
+
+if conf.has_section('entry_points'):
+    entry_point_list = conf.items('entry_points')
+    for entry_point in entry_point_list:
+        entry_points['console_scripts'].append('{0} = {1}'.format(
+            entry_point[0], entry_point[1]))
+
+# Include all .c files, recursively, including those generated by
+# Cython, since we can not do this in MANIFEST.in with a "dynamic"
+# directory name.
+c_files = []
+for root, dirs, files in os.walk(PACKAGENAME):
+    for filename in files:
+        if filename.endswith('.c'):
+            c_files.append(
+                os.path.join(
+                    os.path.relpath(root, PACKAGENAME), filename))
+package_info['package_data'][PACKAGENAME].extend(c_files)
 
 setup(
-    author="Warren J. Hack",
-    author_email='hack@stsci.edu',
+    author=AUTHOR,
+    author_email=AUTHOR_EMAIL,
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
@@ -108,31 +145,28 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Topic :: Scientific/Engineering :: Astronomy',
     ],
-    cmdclass={
-        'build_sphinx': BuildSphinx,
-    },
-    description="Code for implementing HLA-type processing in the HST Pipeline",
-    entry_points={
-        'console_scripts': [
-            'hlapipeline=hlapipeline.cli:main',
-        ],
-    },
+    cmdclass=cmdclassd,
+    description=DESCRIPTION,
+    entry_points=entry_points,
     install_requires=requirements,
-    license="BSD license",
-    long_description=readme + '\n\n' + history,
+    license=LICENSE,
+    long_description=LONG_DESCRIPTION,
     include_package_data=True,
-    keywords='hlapipeline',
-    name='hlapipeline',
-    packages=find_packages(),
+    keywords=['hlapipeline','Astronomy', 'Astrometry', 'mosaics',
+              'photometry', 'source detection'],
+    name=PACKAGENAME,
     project_urls={
         'Bug Reports': 'https://github.com/spacetelescope/hlapipeline/issues/',
         'Source': 'https://github.com/spacetelescope/hlapipeline/',
         'Help': 'https://hsthelp.stsci.edu/',
     },
-    setup_requires=setup_requirements,
+    python_requires='>={}'.format(__minimum_python_version__),
+    scripts=scripts,
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://github.com/spacetelescope/hlapipeline',
-    version='0.1.0',
+    url=URL,
+    use_2to3=False,
+    version=VERSION,
     zip_safe=False,
+    **package_info
 )

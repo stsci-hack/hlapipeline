@@ -1,4 +1,4 @@
-.. _modules_:
+.. _modules:
 
 *************************
 HLA in the Pipeline Code
@@ -12,4 +12,3 @@ HLA in the Pipeline Code
 
 .. automodule:: hlapipeline.utils.astroquery_utils
    :members:
-
