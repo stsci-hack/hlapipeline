@@ -23,7 +23,7 @@ def align(expnames, **kwargs):
     shift_name = kwargs.get('shift_name',None)
     if shift_name is None:
         shift_name = 'shifts_gaia.txt'
-    ref_cat_file = kwargs.get('output', None)
+    ref_cat_file = kwargs.get('ref_cat_file', 'gaia_ref.cat')
     # Set default values for specific Tweakreg parameters which are more
     # appropriate for most of our use cases
     updatehdr = kwargs.get('updatehdr', False)
