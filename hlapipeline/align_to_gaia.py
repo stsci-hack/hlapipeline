@@ -1,3 +1,4 @@
+import os
 import hlapipeline.utils.astrometric_utils as hlautils
 
 from drizzlepac import tweakreg
@@ -33,7 +34,8 @@ def align(expnames, **kwargs):
     conv_width = kwargs.get('conv_width', 3.5)
 
     gaia_catalog = hlautils.create_astrometric_catalog(expnames, **kwargs)
-    gaia_catalog.write(ref_cat_file, format='ascii.no_header')
+    gaia_catalog.write(ref_cat_file, format='ascii.no_header', overwrite=True)
+    print("FINISHED writing out gaia_catalog: {}".format(os.path.abspath(ref_cat_file)))
 
     if len(gaia_catalog) > 6:
         fitgeometry = 'general'
