@@ -20,10 +20,11 @@ def align(expnames, **kwargs):
         Filename of shift file written out by `tweakreg.Tweakreg`
 
     """
+    setname = os.path.basename(expnames[0]).split('_')[0]
     shift_name = kwargs.get('shift_name',None)
     if shift_name is None:
-        shift_name = 'shifts_gaia.txt'
-    ref_cat_file = kwargs.get('ref_cat_file', 'gaia_ref.cat')
+        shift_name = '{}_shifts_gaia.txt'.format(setname)
+    ref_cat_file = kwargs.get('ref_cat_file', '{}_gaia_ref.cat'.format(setname))
     # Set default values for specific Tweakreg parameters which are more
     # appropriate for most of our use cases
     updatehdr = kwargs.get('updatehdr', False)
