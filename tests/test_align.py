@@ -1,4 +1,7 @@
+import sys
+import traceback
 import os
+import datetime
 import pytest
 import numpy
 from astropy.table import Table
@@ -116,7 +119,6 @@ class TestAlignMosaic(BaseHLATest):
         # the master CSV file and return as an Astropy table
         randomCandidateTable = catutils.randomSelectFromCSV(input_file_path[0], 
             inputNumEntries, inputSeedValue)
-        print('table:', randomCandidateTable)
 
         # Invoke the methods which will handle acquiring/downloading the data from 
         # MAST and perform the alignment
@@ -136,6 +138,9 @@ class TestAlignMosaic(BaseHLATest):
             The wrapper provides the parameter settings for the underlying test, 
             as well as implements the criterion for the overall success or failure
             of the test.
+  
+            This routine is strictly for realistic testing on a small number of
+            datasets. 
         """
         inputListFile = 'ACSList5.csv'
         
@@ -154,7 +159,6 @@ class TestAlignMosaic(BaseHLATest):
         # the master CSV file and return as an Astropy table
         randomCandidateTable = catutils.randomSelectFromCSV(input_file_path[0], 
             inputNumEntries, inputSeedValue)
-        print('table:', randomCandidateTable)
 
         # Invoke the methods which will handle acquiring/downloading the data from 
         # MAST and perform the alignment
@@ -194,7 +198,9 @@ class TestAlignMosaic(BaseHLATest):
         # the exception and keep going.
         for dataset in dataset_list:
 
-           print(dataset)
+           print("TEST_ALIGN. Dataset: ", dataset)
+           currentDT = datetime.datetime.now()
+           print(str(currentDT))
            try:
                shift_file = self.run_align([dataset])
                x_shift = numpy.alltrue(numpy.isnan(shift_file['col2']))
@@ -203,15 +209,22 @@ class TestAlignMosaic(BaseHLATest):
 
                if not x_shift and ((rms_x <= 0.25) and (rms_y <= 0.25)):
                    numSuccess += 1
+                   print("TEST_ALIGN. Successful Dataset: ", dataset, "\n")
+               else:
+                   print("TEST_ALIGN. Unsuccessful Dataset: ", dataset, "\n")
 
            # Catch anything that happens as this dataset will be considered a failure, but
-           # the processing of datasets should continue
+           # the processing of datasets should continue.  Generate sufficient output exception
+           # information so problems can be addressed.
            except Exception:
-               pass
+               exc_type, exc_value, exc_tb = sys.exc_info()
+               traceback.print_exception(exc_type, exc_value, exc_tb, file=sys.stdout)
+               print("TEST_ALIGN. Exception Dataset: ", dataset, "\n")
+               continue
 
         # Determine the percent success over all datasets processed
         percentSuccess = numSuccess/numAllDatasets
-        print('Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess*100.0)
+        print('TEST_ALIGN. Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess*100.0)
  
         return percentSuccess
 
