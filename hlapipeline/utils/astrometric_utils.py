@@ -24,11 +24,12 @@ import numpy as np
 
 import stwcs
 from stwcs.distortion import utils
+from stwcs import wcsutil
 from stsci.tools import fileutil as fu
 from stsci.tools import parseinput
 
 from astropy import units as u
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord
 from astropy.io import fits as pf
 from astropy.io import ascii
@@ -38,6 +39,7 @@ import photutils
 from photutils import detect_sources, source_properties
 from photutils import Background2D, MedianBackground
 from scipy.spatial import distance_matrix
+from scipy import ndimage
 
 import matplotlib.pyplot as plt
 from astropy.visualization import SqrtStretch
@@ -284,6 +286,136 @@ def extract_sources(img, fwhm=2.0, threshold=None, source_box=7,
 
     return newcat, segm
 
+def countExtn(fimg, extname='SCI'):
+    """
+    Return the number of 'extname' extensions, defaulting to counting the
+    number of SCI extensions.
+    """
+
+    closefits = False
+    if isinstance(fimg, str):
+        fimg = pf.open(fimg)
+        closefits = True
+
+    n = 0
+    for e in fimg:
+        if 'extname' in e.header and e.header['extname'] == extname:
+            n += 1
+
+    if closefits:
+        fimg.close()
+
+    return n
+
+
+def build_self_reference(filename,wcslist=None, clean_wcs=False):
+    """ This function creates a reference, undistorted WCS that can be used to
+    apply a correction to the WCS of the input file.
+
+    PARAMETERS
+    ----------
+    filename : str
+        Filename of image which will be corrected, and which will form the basis
+        of the undistorted WCS
+
+    wcslist : list, optional
+        List of HSTWCS objects for all SCI extensions in input file.
+        If None, will create using `wcsutil.HSTWCS` on each identified SCI
+        extension identified in `filename`
+
+    clean_wcs : bool
+        Specify whether or not to return the WCS object without any distortion
+        information, or any history of the original input image.  This converts
+        the output from `utils.output_wcs()` into a pristine `HSTWCS` object.
+
+    Returns
+    --------
+    customwcs : object
+        HSTWCS object which contains the undistorted WCS representing the entire
+        field-of-view for the input image
+
+    Syntax
+    -------
+    This function can be used with the following syntax to apply a shift/rot/scale
+    change to the same image:
+
+    >>> import buildref
+    >>> from drizzlepac import updatehdr
+    >>> filename = "jce501erq_flc.fits"
+    >>> wcslin = buildref.build_self_reference(filename)
+    >>> updatehdr.updatewcs_with_shift(filename,wcslin,xsh=49.5694, ysh=19.2203, rot = 359.998, scale = 0.9999964)
+
+    """
+    if 'sipwcs' in filename:
+        sciname = 'sipwcs'
+    else:
+        sciname = 'sci'
+    if wcslist is None:
+        numSci = countExtn(filename, extname=sciname.upper())
+        wcslist = []
+        for extnum in range(numSci):
+            extname = (sciname, extnum+1)
+            if sciname == 'sci':
+                extwcs = wcsutil.HSTWCS(filename, ext=extname)
+            else:
+                # Working with HDRLET as input and do the best we can...
+                extwcs = read_hlet_wcs(filename, ext=extname)
+            wcslist.append(extwcs)
+    wcslin = utils.output_wcs(wcslist)
+    if clean_wcs:
+        wcsbase = wcslin.wcs
+        customwcs = build_hstwcs(wcsbase.crval[0],wcsbase.crval[1],wcsbase.crpix[0],wcsbase.crpix[1],wcslin._naxis1,wcslin._naxis2,wcslin.pscale,wcslin.orientat)
+    else:
+        customwcs = wcslin
+    return customwcs
+
+def read_hlet_wcs(filename, ext):
+    """Insure HSTWCS includes all attributes of a full image WCS.
+
+    For headerlets, the WCS does not contain information about the size of the
+    image, as the image array is not present in the headerlet.
+    """
+    hstwcs = wcsutil.HSTWCS(filename, ext=ext)
+    if hstwcs.naxis1 is None:
+        hstwcs.naxis1 = int(hstwcs.wcs.crpix[0]*2.) # Assume crpix is center of chip
+        hstwcs.naxis2 = int(hstwcs.wcs.crpix[1]*2.)
+
+    return hstwcs
+
+def build_hstwcs(crval1, crval2, crpix1, crpix2, naxis1, naxis2, pscale, orientat):
+    """ Create an HSTWCS object for a default instrument without distortion
+        based on user provided parameter values.
+
+        .. note :: COPIED from drizzlepac.wcs_functions
+    """
+    wcsout = wcsutil.HSTWCS()
+    wcsout.wcs.crval = np.array([crval1,crval2])
+    wcsout.wcs.crpix = np.array([crpix1,crpix2])
+    wcsout.naxis1 = naxis1
+    wcsout.naxis2 = naxis2
+    wcsout.wcs.cd = buildRotMatrix(orientat)*[-1,1]*pscale/3600.0
+    # Synchronize updates with PyWCS/WCSLIB objects
+    wcsout.wcs.set()
+    wcsout.setPscale()
+    wcsout.setOrient()
+    wcsout.wcs.ctype = ['RA---TAN','DEC--TAN']
+
+    return wcsout
+
+def buildRotMatrix(theta):
+    _theta = DEGTORAD(theta)
+    _mrot = np.zeros(shape=(2,2), dtype=np.float64)
+    _mrot[0] = (np.cos(_theta), np.sin(_theta))
+    _mrot[1] = (-np.sin(_theta), np.cos(_theta))
+
+    return _mrot
+
+def DEGTORAD(deg):
+    return (deg * np.pi / 180.)
+
+def RADTODEG(rad):
+    return (rad * 180. / np.pi)
+
 
 def find_isolated_source(catalog, columns=None):
     """Find the source in the catalog which is most isolated from all others.
@@ -333,11 +465,11 @@ def within_footprint(img, wcs, x, y):
 
     Parameters
     -----------
-    wcs : obj
-        HSTWCS or WCS object with naxis terms defined
-
     img : ndarray
         ndarray of image where non-science areas are marked with value of NaN
+
+    wcs : obj
+        HSTWCS or WCS object with naxis terms defined
 
     x,y : arrays
         arrays of x,y positions for sources to be checked
@@ -357,10 +489,177 @@ def within_footprint(img, wcs, x, y):
     y = y[mask]
 
     # Now, confirm that these points fall within actual science area of WCS
-    nanmask = np.isnan(img[x.astype(np.int32),y.astype(np.int32)])
-    x = x[~nanmask]
-    y = y[~nanmask]
+    img_mask = create_image_footprint(img, wcs, border=1.0)
+    inmask = np.where(img_mask[y.astype(np.int32),x.astype(np.int32)])[0]
+    x = x[inmask]
+    y = y[inmask]
     return x,y
+
+def create_image_footprint(image, refwcs, border=0.):
+    """ Create the footprint of the image in the reference WCS frame
+
+    Parameters
+    ----------
+    image : HDUList or filename
+        Image to extract sources for matching to
+        the external astrometric catalog
+
+    refwcs : object
+        Reference WCS for coordinate frame of image
+
+    border : float
+        Buffer (in arcseconds) around edge of image to exclude astrometric 
+        sources. Default: 0.
+
+    """
+    # Interpret input image to generate initial source catalog and WCS
+    if isinstance(image, str):
+        image = pf.open(image)
+    numSci = countExtn(image, extname='SCI')
+    ref_x = refwcs._naxis1
+    ref_y = refwcs._naxis2
+    # convert border value into pixels
+    border_pixels = int(border/refwcs.pscale)
+    
+    mask_arr = np.zeros((ref_y,ref_x),dtype=int)
+
+    for chip in range(numSci):
+        chip += 1
+        # Build arrays of pixel positions for all edges of chip
+        chip_y,chip_x = image['sci',chip].data.shape
+        chipwcs = wcsutil.HSTWCS(image,ext=('sci',chip))
+        xpix = np.arange(chip_x)+1
+        ypix = np.arange(chip_y)+1
+        edge_x = np.hstack([[1]*chip_y,xpix,[chip_x]*chip_y,xpix])
+        edge_y = np.hstack([ypix,[1]*chip_x,ypix,[chip_y]*chip_x])
+        edge_ra,edge_dec = chipwcs.all_pix2world(edge_x,edge_y,1)
+        edge_x_out,edge_y_out = refwcs.all_world2pix(edge_ra,edge_dec,0)
+        edge_x_out = np.clip(edge_x_out.astype(np.int32),0,ref_x-1)
+        edge_y_out = np.clip(edge_y_out.astype(np.int32),0,ref_y-1)
+        mask_arr[edge_y_out, edge_x_out] = 1
+
+    # Fill in outline of each chip
+    mask_arr = ndimage.binary_fill_holes(ndimage.binary_dilation(mask_arr,iterations=2))
+
+    if border > 0.:
+        mask_arr = ndimage.binary_erosion(mask_arr, iterations=border_pixels)
+    
+    return mask_arr
+
+def find_isolated_offset(image, reference,  refnames=['ra', 'dec'],
+                     match_tolerance=5., isolation_limit = ISOLATION_LIMIT):
+    """Iteratively look for the best cross-match between the catalog and ref.
+
+    Parameters
+    ----------
+        image : HDUList or filename
+            Image to extract sources for matching to
+            the external astrometric catalog
+
+        reference : str or object
+            Reference catalog, either as a filename or ``astropy.Table``
+            containing astrometrically accurate sky coordinates for astrometric
+            standard sources
+
+        refnames : list
+            List of table column names for sky coordinates of astrometric
+            standard sources from reference catalog
+
+        match_tolerance : float
+            Tolerance (in pixels) for recognizing that a source position matches
+            an astrometric catalog position.  Larger values allow for lower
+            accuracy source positions to be compared to astrometric catalog
+            Default: 5 pixels
+
+        isolation_limit : float
+            Fractional value (0-1.0) of distance from most isolated source to
+            next source to use as limit on overlap for source matching.
+            Default: 0.55
+
+    Returns
+    -------
+        best_offset : tuple
+            Offset in input image pixels between image source positions and
+            astrometric catalog positions that results in largest number of
+            matches of astrometric sources with image sources
+    """
+    # Interpret input image to generate initial source catalog and WCS
+    if isinstance(image, str):
+        image = pf.open(image)
+    # check to see whether reference catalog can be found
+    if not os.path.exists(reference):
+        print("Could not find input reference catalog: {}".format(reference))
+        raise FileNotFoundError
+      
+    # Extract reference WCS from image
+    refwcs = build_self_reference(image, clean_wcs=True)
+
+    # Build source catalog for entire image
+    master_cat = None
+    numSci = countExtn(image, extname='SCI')
+    for chip in range(numSci):
+        chip += 1
+        # find sources in image
+        imgarr = image['sci',chip].data
+        seg_cat, segmap = extract_sources(imgarr)
+        seg_tab = seg_cat.to_table()
+        # Convert to sky coordinates
+        chip_wcs = wcsutil.HSTWCS(image,ext=('sci',chip))
+        seg_ra,seg_dec = chip_wcs.all_pix2world(seg_tab['xcentroid'],seg_tab['ycentroid'],1)
+        # Convert sky positions to pixel positions in the reference WCS frame
+        seg_xy_out = refwcs.all_world2pix(seg_ra,seg_dec,1)
+        seg_tab['xcentroid'] = seg_xy_out[0]
+        seg_tab['ycentroid'] = seg_xy_out[1]
+        if master_cat is None:
+            master_cat = seg_tab
+        else:
+            master_cat = vstack([master_cat, seg_tab])
+
+    # Retreive source XY positions in reference frame
+    seg_xy = np.column_stack((master_cat['xcentroid'], master_cat['ycentroid']))
+    seg_xy = seg_xy[~np.isnan(seg_xy[:, 0])]
+
+    # read in reference catalog
+    if isinstance(reference, str):
+        refcat = ascii.read(reference)
+    else:
+        refcat = reference
+
+    ref_ra = refcat[refnames[0]]
+    ref_dec = refcat[refnames[1]]
+    xref, yref = refwcs.all_world2pix(ref_ra, ref_dec, 1)
+    print("Read in {} sources from astrometric reference catalog for this field...".format(len(ref_ra)))
+
+    # look for the most isolated reference source to serve as a
+    # zero-point/anchor
+    xref, yref = within_footprint(image, refwcs, xref, yref)
+    ref_xy = np.column_stack((xref, yref))
+    # assumption: catalog is column_stack((xc,yc))
+    ref_iso, iso_dist = find_isolated_source(ref_xy)
+
+    # compute match limit based on distance to neighbor
+    match_limit = iso_dist*isolation_limit
+
+    # look for nearest matches to isolated reference source
+    distxy = distance_matrix([ref_xy[ref_iso]], seg_xy)[0]
+    maskdist = (distxy < match_limit)
+    # identify x,y positions of sources nearest isolated reference
+    # close_matches = seg_xy[maskdist]
+
+    # Now, start iterating through all combinations
+    delta_refs = seg_xy[maskdist] - ref_xy[ref_iso]
+    num_matches = []
+    for delta in delta_refs:
+        mdist = distance_matrix(ref_xy+delta, seg_xy)
+        num_matches.append(len(np.where(mdist < match_tolerance)[0]))
+    max_matches = max(num_matches)
+    best_offset = delta_refs[num_matches.index(max_matches)]
+    if max_matches < int(len(ref_xy)*0.1):
+        best_offset = None
+        rootname = image[0].header['rootname']
+        print("No valid offset found for {}".format(rootname))
+    print('best offset {} based on {} cross-matches'.format(best_offset, max_matches))
+    return best_offset
 
 
 def find_best_offset(image, wcs, reference, refnames=['ra', 'dec'],
@@ -419,7 +718,7 @@ def find_best_offset(image, wcs, reference, refnames=['ra', 'dec'],
     xyarr = np.column_stack((xref, yref))
     # assumption: catalog is column_stack((xc,yc))
     ref_iso, iso_dist = find_isolated_source(xyarr)
-    print("Found isolated source at position : {},{}".format(xyarr[ref_iso]))
+    print("Found isolated source at position : {}".format(xyarr[ref_iso]))
     print("  with separation from neighbor of: {}".format(iso_dist))
 
     # compute match limit based on distance to neighbor
