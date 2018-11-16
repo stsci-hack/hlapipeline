@@ -163,7 +163,7 @@ class TestAlignMosaic(BaseHLATest):
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        reference_wcs = amutils.build_reference_wcs(['ib6v06060'])
         test_limit = self.fit_limit / reference_wcs.pscale
         assert (rms_x <= test_limit and rms_y <= test_limit)
 
