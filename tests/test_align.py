@@ -4,6 +4,7 @@ import os
 import datetime
 import pytest
 import numpy
+import glob
 from astropy.table import Table
 
 from stwcs import updatewcs
@@ -160,10 +161,11 @@ class TestAlignMosaic(BaseHLATest):
         self.input_loc = ''
 
         shift_file = self.run_align('ib6v06060')
+        input_filenames = sorted(glob.glob('ib6v*fl*.fits'))
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        reference_wcs = amutils.build_reference_wcs(['ib6v06060'])
+        reference_wcs = amutils.build_reference_wcs(input_filenames)
         test_limit = self.fit_limit / reference_wcs.pscale
         assert (rms_x <= test_limit and rms_y <= test_limit)
 
