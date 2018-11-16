@@ -31,14 +31,16 @@ def retrieve_observation(obsid, suffix=['FLC']):
     if len(obsTable) == 0:
         print("WARNING: Query for {} returned NO RESULTS!".format(obsid))
         return local_files
-
+    # Insure suffix is all upper-case
+    for i,s in enumerate(suffix):
+        suffix[i] = s.upper()
     dpobs = Observations.get_product_list(obsTable)
     dataProductsByID = Observations.filter_products(dpobs,
                                               productSubGroupDescription=suffix,
                                               extension='fits',
                                               mrp_only=False)
+    print(dataProductsByID)
     manifest = Observations.download_products(dataProductsByID, mrp_only=False)
-
     download_dir = None
     for file in manifest['Local Path']:
         # Identify what sub-directory was created by astroquery for the download
