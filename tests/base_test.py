@@ -30,7 +30,8 @@ class BaseHLATest(BaseTest):
     input_repo = 'hst-hla-pipeline'
     results_root = 'hst-hla-pipeline-results'
     output_shift_file = None
-
+    fit_limit = 0.010 # 10 milli-arcseconds
+    
     docopy = False  # Do not make additional copy by default
     rtol = 1e-6
 

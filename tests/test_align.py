@@ -11,6 +11,7 @@ from stwcs import updatewcs
 from base_test import BaseHLATest
 from hlapipeline import align_to_gaia
 import hlapipeline.utils.catalog_utils as catutils
+import hlapipeline.utils.astrometric_utils as amutils
 
 @pytest.mark.bigdata
 class TestAlignMosaic(BaseHLATest):
@@ -59,7 +60,9 @@ class TestAlignMosaic(BaseHLATest):
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        assert (rms_x <= 0.25 and rms_y <= 0.25)
+        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        test_limit = self.fit_limit / reference_wcs.pscale
+        assert (rms_x <= test_limit and rms_y <= test_limit)
 
     def test_align_47tuc(self):
         """ Verify whether 47Tuc exposures can be aligned to an astrometric standard.
@@ -79,7 +82,9 @@ class TestAlignMosaic(BaseHLATest):
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        assert (rms_x <= 0.25 and rms_y <= 0.25)
+        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        test_limit = self.fit_limit / reference_wcs.pscale
+        assert (rms_x <= test_limit and rms_y <= test_limit)
 
     @pytest.mark.xfail
     @pytest.mark.parametrize("input_filenames", [['j8ura1j1q_flt.fits','j8ura1j2q_flt.fits',
@@ -144,7 +149,10 @@ class TestAlignMosaic(BaseHLATest):
             exc_type, exc_value, exc_tb = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_tb, file=sys.stdout)
             sys.exit()
-        assert (x_shift == False and y_shift == False and rms_x <= 0.25 and rms_y <= 0.25)
+
+        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        test_limit = self.fit_limit / reference_wcs.pscale
+        assert (x_shift == False and y_shift == False and rms_x <= test_limit and rms_y <= test_limit)
 
     def test_astroquery(self):
         """Verify that new astroquery interface will work"""
@@ -155,7 +163,9 @@ class TestAlignMosaic(BaseHLATest):
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        assert (rms_x <= 0.25 and rms_y <= 0.25)
+        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        test_limit = self.fit_limit / reference_wcs.pscale
+        assert (rms_x <= test_limit and rms_y <= test_limit)
 
     @pytest.mark.xfail
     @pytest.mark.slow
