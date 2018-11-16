@@ -4,7 +4,6 @@ import os
 import datetime
 import pytest
 import numpy
-import glob
 from astropy.table import Table
 
 from stwcs import updatewcs
@@ -56,12 +55,12 @@ class TestAlignMosaic(BaseHLATest):
                             'j8boa1m8q_flc.fits', 'j8boa1m4q_flc.fits',
                             'j8boa1maq_flc.fits', 'j8boa1m6q_flc.fits']
         self.output_shift_file = 'test_mosaic_ngc188_shifts.txt'
-        shift_file = self.run_align(input_filenames)
+        shift_file, local_files = self.run_align(input_filenames)
 
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        reference_wcs = amutils.build_reference_wcs(local_files)
         test_limit = self.fit_limit / reference_wcs.pscale
         assert (rms_x <= test_limit and rms_y <= test_limit)
 
@@ -78,12 +77,12 @@ class TestAlignMosaic(BaseHLATest):
                                 'jddh02gjq_flc.fits','jddh02glq_flc.fits',
                                 'jddh02goq_flc.fits']
         self.output_shift_file = 'test_mosaic_47tuc_shifts.txt'
-        shift_file = self.run_align(input_filenames)
+        shift_file, local_files = self.run_align(input_filenames)
 
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        reference_wcs = amutils.build_reference_wcs(local_files)
         test_limit = self.fit_limit / reference_wcs.pscale
         assert (rms_x <= test_limit and rms_y <= test_limit)
 
@@ -141,7 +140,7 @@ class TestAlignMosaic(BaseHLATest):
         self.input_loc = 'base_tests'
         self.curdir = os.getcwd()
         try:
-            shift_file = self.run_align(input_filenames)
+            shift_file, local_files = self.run_align(input_filenames)
             x_shift = numpy.alltrue(numpy.isnan(shift_file['col2']))
             y_shift = numpy.alltrue(numpy.isnan(shift_file['col3']))
             rms_x = max(shift_file['col6'])
@@ -151,7 +150,7 @@ class TestAlignMosaic(BaseHLATest):
             traceback.print_exception(exc_type, exc_value, exc_tb, file=sys.stdout)
             sys.exit()
 
-        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        reference_wcs = amutils.build_reference_wcs(local_files)
         test_limit = self.fit_limit / reference_wcs.pscale
         assert (x_shift == False and y_shift == False and rms_x <= test_limit and rms_y <= test_limit)
 
@@ -160,12 +159,11 @@ class TestAlignMosaic(BaseHLATest):
         self.curdir = os.getcwd()
         self.input_loc = ''
 
-        shift_file = self.run_align('ib6v06060')
-        input_filenames = sorted(glob.glob('ib6v*fl*.fits'))
+        shift_file, local_files = self.run_align('ib6v06060')
         rms_x = max(shift_file['col6'])
         rms_y = max(shift_file['col7'])
 
-        reference_wcs = amutils.build_reference_wcs(input_filenames)
+        reference_wcs = amutils.build_reference_wcs(local_files)
         test_limit = self.fit_limit / reference_wcs.pscale
         assert (rms_x <= test_limit and rms_y <= test_limit)
 
@@ -279,12 +277,15 @@ class TestAlignMosaic(BaseHLATest):
            currentDT = datetime.datetime.now()
            print(str(currentDT))
            try:
-               shift_file = self.run_align([dataset])
+               shift_file, local_files = self.run_align([dataset])
                x_shift = numpy.alltrue(numpy.isnan(shift_file['col2']))
                rms_x = max(shift_file['col6'])
                rms_y = max(shift_file['col7'])
 
-               if not x_shift and ((rms_x <= 0.25) and (rms_y <= 0.25)):
+               reference_wcs = amutils.build_reference_wcs(local_files)
+               test_limit = self.fit_limit / reference_wcs.pscale
+
+               if not x_shift and ((rms_x <= test_limit) and (rms_y <= test_limit)):
                    numSuccess += 1
                    print("TEST_ALIGN. Successful Dataset: ", dataset, "\n")
                else:
