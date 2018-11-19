@@ -420,12 +420,24 @@ def build_source_catalog(image, refwcs, **kwargs):
         Specify whether or not to write out a separate catalog file for all the
         sources found in each chip.  Default: None (False)
 
+    threshold : float, optional
+        This parameter controls the threshold used for identifying sources in
+        the image relative to the background RMS in much the same way that
+        the 'threshold' parameter in 'tweakreg' works.
+        Default: 1000.
+
+    fwhm : float, optional
+        FWHM of the expected sources from the image, comparable to the
+        'conv_width' parameter from 'tweakreg'.  Objects with FWHM closest to
+        this value will be identified as sources in the catalog. Default: 3.0.
+
     Returns
     --------
     master_cat : astropy.Table object
         Source catalog for all 'valid' sources identified from all chips of the
         input image with positions translated to the reference WCS coordinate
         frame.
+
 
     """
     dqname = kwargs.get('dqname','DQ')
@@ -473,7 +485,7 @@ def compute_photometry(catalog, photmode):
 
     photmode : String
         Specification of the observation filter configuration used for the exposure
-        as reported by the 'PHOTMODE' keyword from the PRIMARY header. 
+        as reported by the 'PHOTMODE' keyword from the PRIMARY header.
 
     Returns
     --------
