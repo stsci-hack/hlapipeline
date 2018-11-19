@@ -48,6 +48,8 @@ from astropy.visualization.mpl_normalize import ImageNormalize
 
 import pysynphot as S
 
+from drizzlepac.tweakutils import build_xy_zeropoint
+
 from hlapipeline.utils import bitmask
 
 ASTROMETRIC_CAT_ENVVAR = "ASTROMETRIC_CATALOG_URL"
@@ -107,18 +109,11 @@ def create_astrometric_catalog(inputs, **pars):
 
     inputs, _ = parseinput.parseinput(inputs)
     # start by creating a composite field-of-view for all inputs
-    wcslist = []
-    for img in inputs:
-        nsci = fu.countExtn(img)
-        for num in range(nsci):
-            extname = '{}[sci,{}]'.format(img, num+1)
-            wcslist.append(stwcs.wcsutil.HSTWCS(extname))
-
     # This default output WCS will have the same plate-scale and orientation
     # as the first chip in the list, which for WFPC2 data means the PC.
     # Fortunately, for alignment, this doesn't matter since no resampling of
     # data will be performed
-    outwcs = utils.output_wcs(wcslist)
+    outwcs = build_reference_wcs(inputs)
     radius = compute_radius(outwcs)
     ra, dec = outwcs.wcs.crval
 
@@ -151,7 +146,30 @@ def create_astrometric_catalog(inputs, **pars):
 
     return ref_table
 
+def build_reference_wcs(inputs, sciname='sci'):
+    """Create the reference WCS based on all the inputs for a field"""
+    # start by creating a composite field-of-view for all inputs
+    wcslist = []
+    for img in inputs:
+        nsci = countExtn(img)
+        for num in range(nsci):
+            extname = (sciname, num+1)
+            if sciname == 'sci':
+                extwcs = wcsutil.HSTWCS(img, ext=extname)
+            else:
+                # Working with HDRLET as input and do the best we can...
+                extwcs = read_hlet_wcs(img, ext=extname)
 
+            wcslist.append(extwcs)
+
+    # This default output WCS will have the same plate-scale and orientation
+    # as the first chip in the list, which for WFPC2 data means the PC.
+    # Fortunately, for alignment, this doesn't matter since no resampling of
+    # data will be performed
+    outwcs = utils.output_wcs(wcslist)
+    
+    return outwcs
+    
 def get_catalog(ra, dec, sr=0.1, fmt='CSV', catalog='GSC241'):
     """ Extract catalog from VO web service.
 
@@ -463,7 +481,7 @@ def countExtn(fimg, extname='SCI'):
     return n
 
 
-def build_self_reference(filename,wcslist=None, clean_wcs=False):
+def build_self_reference(filename, clean_wcs=False):
     """ This function creates a reference, undistorted WCS that can be used to
     apply a correction to the WCS of the input file.
 
@@ -472,11 +490,6 @@ def build_self_reference(filename,wcslist=None, clean_wcs=False):
     filename : str
         Filename of image which will be corrected, and which will form the basis
         of the undistorted WCS
-
-    wcslist : list, optional
-        List of HSTWCS objects for all SCI extensions in input file.
-        If None, will create using `wcsutil.HSTWCS` on each identified SCI
-        extension identified in `filename`
 
     clean_wcs : bool
         Specify whether or not to return the WCS object without any distortion
@@ -505,18 +518,9 @@ def build_self_reference(filename,wcslist=None, clean_wcs=False):
         sciname = 'sipwcs'
     else:
         sciname = 'sci'
-    if wcslist is None:
-        numSci = countExtn(filename, extname=sciname.upper())
-        wcslist = []
-        for extnum in range(numSci):
-            extname = (sciname, extnum+1)
-            if sciname == 'sci':
-                extwcs = wcsutil.HSTWCS(filename, ext=extname)
-            else:
-                # Working with HDRLET as input and do the best we can...
-                extwcs = read_hlet_wcs(filename, ext=extname)
-            wcslist.append(extwcs)
-    wcslin = utils.output_wcs(wcslist)
+
+    wcslin = build_reference_wcs([filename], sciname=sciname)
+
     if clean_wcs:
         wcsbase = wcslin.wcs
         customwcs = build_hstwcs(wcsbase.crval[0],wcsbase.crval[1],wcsbase.crpix[0],wcsbase.crpix[1],wcslin._naxis1,wcslin._naxis2,wcslin.pscale,wcslin.orientat)
@@ -824,10 +828,119 @@ def create_image_footprint(image, refwcs, border=0.):
     if border > 0.:
         mask_arr = ndimage.binary_erosion(mask_arr, iterations=border_pixels)
 
-    return mask_arr
+    return mask_arr        
 
-def compute_hist2d(img_coords, ref_coords, limit=None):
-    deltas_full = distance_matrix(img_coords, ref_coords)
+def find_hist2d_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec'],
+                     match_tolerance=5., isolation_limit = ISOLATION_LIMIT,
+                     min_match=10, classify=True):
+    """Iteratively look for the best cross-match between the catalog and ref.
+
+    Parameters
+    ----------
+        filename : HDUList or filename
+            Image to extract sources for matching to
+            the external astrometric catalog
+
+        reference : str or object
+            Reference catalog, either as a filename or ``astropy.Table``
+            containing astrometrically accurate sky coordinates for astrometric
+            standard sources
+
+        refnames : list
+            List of table column names for sky coordinates of astrometric
+            standard sources from reference catalog
+
+        match_tolerance : float
+            Tolerance (in pixels) for recognizing that a source position matches
+            an astrometric catalog position.  Larger values allow for lower
+            accuracy source positions to be compared to astrometric catalog
+            Default: 5 pixels
+
+        isolation_limit : float
+            Fractional value (0-1.0) of distance from most isolated source to
+            next source to use as limit on overlap for source matching.
+            Default: 0.55
+
+        classify : bool
+            Specify whether or not to use central_moments classification to
+            ignore likely cosmic-rays/bad-pixels when generating the source
+            catalog.  Default: True
+
+    Returns
+    -------
+        best_offset : tuple
+            Offset in input image pixels between image source positions and
+            astrometric catalog positions that results in largest number of
+            matches of astrometric sources with image sources
+    """
+    # Interpret input image to generate initial source catalog and WCS
+    if isinstance(filename, str):
+        image = pf.open(filename)
+        rootname = filename.split("_")[0]
+    else:
+        image = filename
+        rootname = image[0].header['rootname']
+
+    # check to see whether reference catalog can be found
+    if not os.path.exists(reference):
+        print("Could not find input reference catalog: {}".format(reference))
+        raise FileNotFoundError
+
+    # Extract reference WCS from image
+    if refwcs is None:
+        refwcs = build_self_reference(image, clean_wcs=True)
+    print("Computing offset for field-of-view defined by:")
+    print(refwcs)
+
+    # read in reference catalog
+    if isinstance(reference, str):
+        refcat = ascii.read(reference)
+    else:
+        refcat = reference
+    print("\nRead in reference catalog with {} sources.".format(len(refcat)))
+
+    ref_ra = refcat[refnames[0]]
+    ref_dec = refcat[refnames[1]]
+
+    # Build source catalog for entire image
+    iso_cat = build_source_catalog(image, refwcs, output=True, classify=classify)
+    iso_cat.write(filename.replace(".fits","_xy.cat"), format='ascii.no_header', 
+                    overwrite=True)
+
+    # Create selective catalog for determining offset
+    #   - Limit to brightest 25% of sources (min: 10)
+    #max_ref = max(int(0.5*len(refcat)),min_match)
+    #iso_cat = filter_catalog(master_cat, bright_limit=0.25,
+    #                         min_bright=min_match)
+
+    # Retreive source XY positions in reference frame
+    seg_xy = np.column_stack((iso_cat['xcentroid'], iso_cat['ycentroid']))
+    seg_xy = seg_xy[~np.isnan(seg_xy[:, 0])]
+
+    # Translate reference catalog positions into input image coordinate frame
+    xref, yref = refwcs.all_world2pix(ref_ra, ref_dec, 1)
+
+    # look for the most isolated reference source to serve as a
+    # zero-point/anchor
+    xref, yref = within_footprint(image, refwcs, xref, yref)
+    ref_xy = np.column_stack((xref, yref))
+    print("\nWorking with {} astrometric sources for this field".format(len(ref_xy)))
+
+    # write out astrometric reference catalog that was actually used
+    ref_ra_img, ref_dec_img = refwcs.all_pix2world(xref, yref, 1)
+    ref_tab = Table([ref_ra_img,ref_dec_img, xref, yref],names=['ra','dec', 'x', 'y'])
+    ref_tab.write(reference.replace('.cat','_{}.cat'.format(rootname)),
+                  format='ascii.fast_commented_header', overwrite=True)
+    searchrad = 15.0 / refwcs.pscale
+
+    xp,yp,nmatches,zpqual = build_xy_zeropoint(seg_xy, ref_xy,
+                                               searchrad=searchrad,
+                                               histplot=False,figure_id=1,
+                                               plotname=None, interactive=False)
+    hist2d_offset = (xp,yp)
+    print('best offset {} based on {} cross-matches'.format(hist2d_offset, nmatches))
+
+    return hist2d_offset, seg_xy, ref_xy
 
 
 def find_isolated_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec'],
@@ -889,12 +1002,15 @@ def find_isolated_offset(filename, reference,  refwcs = None, refnames=['ra', 'd
     # Extract reference WCS from image
     if refwcs is None:
         refwcs = build_self_reference(image, clean_wcs=True)
+    print("Computing offset for field-of-view defined by:")
+    print(refwcs)
 
     # read in reference catalog
     if isinstance(reference, str):
         refcat = ascii.read(reference)
     else:
         refcat = reference
+    print("\nRead in reference catalog with {} sources.".format(len(refcat)))
 
     ref_ra = refcat[refnames[0]]
     ref_dec = refcat[refnames[1]]
@@ -919,16 +1035,13 @@ def find_isolated_offset(filename, reference,  refwcs = None, refnames=['ra', 'd
     # zero-point/anchor
     xref, yref = within_footprint(image, refwcs, xref, yref)
     ref_xy = np.column_stack((xref, yref))
-    print("Working with {} astrometric sources for this field".format(len(ref_xy)))
+    print("\nWorking with {} astrometric sources for this field".format(len(ref_xy)))
 
     # write out astrometric reference catalog that was actually used
     ref_ra_img, ref_dec_img = refwcs.all_pix2world(xref, yref, 1)
     ref_tab = Table([ref_ra_img,ref_dec_img, xref, yref],names=['ra','dec', 'x', 'y'])
     ref_tab.write(reference.replace('.cat','_{}.cat'.format(rootname)),
                   format='ascii.fast_commented_header', overwrite=True)
-
-    # Try full 2d hist method
-    hist2d_offset = compute_hist2d(ref_xy, seg_xy)
 
     # Now, determine what catalog to use for computing the offset
     iso_xy = ref_xy
@@ -962,6 +1075,7 @@ def find_isolated_offset(filename, reference,  refwcs = None, refnames=['ra', 'd
         best_offset = None
         print("No valid offset found for {}".format(rootname))
     print('best offset {} based on {} cross-matches'.format(best_offset, max_matches))
+
     return best_offset
 
 
