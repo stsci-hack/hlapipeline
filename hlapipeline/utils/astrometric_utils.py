@@ -732,7 +732,7 @@ def create_image_footprint(image, refwcs, border=0.):
     return mask_arr
 
 def find_hist2d_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec'],
-                     match_tolerance=5., chip_catalog=True,
+                     match_tolerance=5., chip_catalog=True, search_radius=15.0,
                      min_match=10, classify=True):
     """Iteratively look for the best cross-match between the catalog and ref.
 
@@ -766,6 +766,11 @@ def find_hist2d_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec
         chip_catalog : boolean
             Specify whether or not to write out individual source catalog for
             each chip in the image.  Default: True.
+
+        search_radius : float
+            Maximum separation (in arcseconds) from source positions to look
+            for valid cross-matches with reference source positions.
+            Default: 15.0 arcseconds.
 
         min_match : int
             Minimum number of cross-matches for an acceptable determination of
@@ -840,7 +845,7 @@ def find_hist2d_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec
     ref_tab = Table([ref_ra_img,ref_dec_img, xref, yref],names=['ra','dec', 'x', 'y'])
     ref_tab.write(reference.replace('.cat','_{}.cat'.format(rootname)),
                   format='ascii.fast_commented_header', overwrite=True)
-    searchrad = 15.0 / refwcs.pscale
+    searchrad = search_radius / refwcs.pscale
 
     # Use 2d-Histogram builder from drizzlepac.tweakreg -- for demo only...
     xp,yp,nmatches,zpqual = build_xy_zeropoint(seg_xy, ref_xy,
