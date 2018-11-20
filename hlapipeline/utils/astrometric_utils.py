@@ -421,13 +421,13 @@ def build_source_catalog(image, refwcs, **kwargs):
         sources found in each chip.  Default: None (False)
 
     threshold : float, optional
-        This parameter controls the threshold used for identifying sources in
+        This parameter controls the S/N threshold used for identifying sources in
         the image relative to the background RMS in much the same way that
         the 'threshold' parameter in 'tweakreg' works.
         Default: 1000.
 
     fwhm : float, optional
-        FWHM of the expected sources from the image, comparable to the
+        FWHM (in pixels) of the expected sources from the image, comparable to the
         'conv_width' parameter from 'tweakreg'.  Objects with FWHM closest to
         this value will be identified as sources in the catalog. Default: 3.0.
 
