@@ -41,7 +41,7 @@ from photutils import Background2D, MedianBackground
 from scipy import ndimage
 
 import matplotlib.pyplot as plt
-from astropy.visualization import SqrtStretch
+from astropy.visualization import SqrtStretch, LogStretch, LinearStretch
 from astropy.visualization.mpl_normalize import ImageNormalize
 
 import pysynphot as S
@@ -308,6 +308,59 @@ def find_gsc_offset(image, input_catalog='GSC1', output_catalog='GAIA'):
             delta_dec = float(element.text)
 
     return delta_ra,delta_dec
+
+def identify_cosmic_rays(img, fwhm=3.0, threshold=None, source_box=7,
+                    classify=True, output=None, plot=False, vmax=None,
+                    large_limit=100):
+    """Use photutils to find cosmic-rays in image based on segmentation."""
+    if threshold is None:
+        bkg_estimator = MedianBackground()
+        bkg = Background2D(img, (50, 50), filter_size=(3, 3),
+                           bkg_estimator=bkg_estimator)
+        threshold = bkg.background + (3. * bkg.background_rms)
+    sigma = fwhm * gaussian_fwhm_to_sigma
+    kernel = Gaussian2DKernel(sigma, x_size=source_box, y_size=source_box)
+    kernel.normalize()
+    segm = detect_sources(img, threshold, npixels=source_box,
+                          filter_kernel=kernel)
+    cat = source_properties(img, segm)
+    print("Total Number of detected sources: {}".format(len(cat)))
+    if classify:
+        # Remove likely cosmic-rays based on central_moments classification
+        goodsrcs = np.where(classify_sources(cat) == 1)[0].tolist()
+        newcat = photutils.segmentation.properties.SourceCatalog([])
+        # Do not include sources which cover > large_limit pixels as CRs
+        large_seg = np.where(segm.areas > large_limit)[0]
+        print("Large segments {} with areas {}".format(large_seg, segm.areas[large_seg]))
+        segm.remove_labels(large_seg+1)
+        # remove 'good' sources from segmentation map to create map of cosmic-rays
+        # and return catalog with only 'good' sources included
+        for src in goodsrcs:
+            newcat._data.append(cat[src+1])
+            segm.remove_labels(src+1)
+    else:
+        newcat = cat
+
+    tbl = newcat.to_table()
+    print("Final Number of selected sources: {}".format(len(newcat)))
+    if output:
+        tbl['xcentroid'].info.format = '.10f'  # optional format
+        tbl['ycentroid'].info.format = '.10f'
+        tbl['source_sum'].info.format = '.10f'
+        tbl['cxy'].info.format = '.10f'
+        tbl['cyy'].info.format = '.10f'
+        if not output.endswith('.cat'):
+            output += '.cat'
+        tbl.write(output, format='ascii.no_header')
+        print("Wrote source catalog: {}".format(output))
+
+    if plot:
+        norm = ImageNormalize(stretch=LinearStretch())
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
+        ax1.imshow(img, origin='lower', cmap='Greys_r', norm=norm, vmin=0, vmax=vmax)
+        ax2.imshow(segm, origin='lower', cmap=segm.cmap(random_state=12345))
+
+    return tbl, segm
 
 
 def extract_sources(img, fwhm=3.0, threshold=None, source_box=7,
