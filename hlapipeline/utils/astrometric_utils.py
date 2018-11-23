@@ -309,37 +309,48 @@ def find_gsc_offset(image, input_catalog='GSC1', output_catalog='GAIA'):
 
     return delta_ra,delta_dec
 
-def identify_cosmic_rays(img, fwhm=3.0, threshold=None, source_box=7,
-                    classify=True, output=None, plot=False, vmax=None,
-                    large_limit=100):
+def identify_cosmic_rays(img, **kwargs):
     """Use photutils to find cosmic-rays in image based on segmentation."""
+    # Interpret input parameters
+    fwhm = kwargs.get('fwhm', 3.0)
+    threshold = kwargs.get('threshold', None)
+    source_box = kwargs.get('source_box', 7)
+    output = kwargs.get('output', None)
+    plot = kwargs.get('plot', False)
+    vmax = kwargs.get('vmax', None)
+    large_limit = kwargs.get('large_limit', 100)
+
     if threshold is None:
         bkg_estimator = MedianBackground()
         bkg = Background2D(img, (50, 50), filter_size=(3, 3),
                            bkg_estimator=bkg_estimator)
         threshold = bkg.background + (3. * bkg.background_rms)
+        print("threshold: {},{}".format(threshold.min(),threshold.max()))
     sigma = fwhm * gaussian_fwhm_to_sigma
     kernel = Gaussian2DKernel(sigma, x_size=source_box, y_size=source_box)
     kernel.normalize()
-    segm = detect_sources(img, threshold, npixels=source_box,
-                          filter_kernel=kernel)
+
+    # Need to combine all sources (no filter_kernel) with those identified
+    # using the filter_kernel.
+    segm = detect_sources(img, threshold, npixels=source_box)#,
+#                          filter_kernel=kernel)
+
     cat = source_properties(img, segm)
     print("Total Number of detected sources: {}".format(len(cat)))
-    if classify:
-        # Remove likely cosmic-rays based on central_moments classification
-        goodsrcs = np.where(classify_sources(cat) == 1)[0].tolist()
-        newcat = photutils.segmentation.properties.SourceCatalog([])
-        # Do not include sources which cover > large_limit pixels as CRs
-        large_seg = np.where(segm.areas > large_limit)[0]
-        print("Large segments {} with areas {}".format(large_seg, segm.areas[large_seg]))
-        segm.remove_labels(large_seg+1)
-        # remove 'good' sources from segmentation map to create map of cosmic-rays
-        # and return catalog with only 'good' sources included
-        for src in goodsrcs:
-            newcat._data.append(cat[src+1])
-            segm.remove_labels(src+1)
-    else:
-        newcat = cat
+    # Remove likely cosmic-rays based on central_moments classification
+    goodsrcs_indx = np.where(classify_sources(cat) == 1)[0].tolist()
+    newcat = photutils.segmentation.properties.SourceCatalog([])
+    # Do not include sources which cover > large_limit pixels as CRs
+    large_seg_indx = np.where(segm.areas > large_limit)[0]
+    segm.remove_labels(large_seg_indx+1)
+    # remove 'good' sources from segmentation map to create map of cosmic-rays
+    # and return catalog with only 'good' sources included
+    for src in goodsrcs_indx:
+        newcat._data.append(cat[src])
+        segm.remove_labels(src+1)
+    # Dilate the segmentation map to 'grow' the cosmic-rays to neighboring pixels
+    #   - convert to binary mask
+    #   - use scipy morphology dilation function.
 
     tbl = newcat.to_table()
     print("Final Number of selected sources: {}".format(len(newcat)))
@@ -362,6 +373,92 @@ def identify_cosmic_rays(img, fwhm=3.0, threshold=None, source_box=7,
 
     return tbl, segm
 
+
+def remove_cosmics(image, **kwargs):
+    """Identify and remove cosmic-rays from input image using photutils.
+
+    The catalog returned by this function includes sources found in all chips
+    of the input image with the positions translated to the coordinate frame
+    defined by the reference WCS `refwcs`.  The sources will be
+      - identified using photutils segmentation-based source finding code
+      - ignore any input pixel which has been flagged as 'bad' in the DQ
+        array, should a DQ array be found in the input HDUList.
+      - classified as probable cosmic-rays (if enabled) using central_moments
+        properties of each source, with these sources being removed from the
+        catalog.
+
+    Parameters
+    -----------
+    image : HDUList object or filename
+        Input image as an astropy.io.fits HDUList object
+
+    refwcs : HSTWCS object
+        Definition of the reference frame WCS.
+
+    dqname : string
+        EXTNAME for the DQ array, if present, in the input image HDUList.
+
+    output : boolean
+        Specify whether or not to write out a separate catalog file for all the
+        sources found in each chip.  Default: None (False)
+
+    threshold : float, optional
+        This parameter controls the S/N threshold used for identifying sources in
+        the image relative to the background RMS in much the same way that
+        the 'threshold' parameter in 'tweakreg' works.
+        Default: 1000.
+
+    fwhm : float, optional
+        FWHM (in pixels) of the expected sources from the image, comparable to the
+        'conv_width' parameter from 'tweakreg'.  Objects with FWHM closest to
+        this value will be identified as sources in the catalog. Default: 3.0.
+
+    Returns
+    --------
+    master_cat : astropy.Table object
+        Source catalog for all 'valid' sources identified from all chips of the
+        input image with positions translated to the reference WCS coordinate
+        frame.
+
+
+    """
+    dqname = kwargs.get('dqname','DQ')
+    force = kwargs.get('force', True)
+    grow = kwargs.get('grow',None)
+    good_bits = kwargs.get('good_bits', None)
+
+    if isinstance(image, str):
+        image = pf.open(image, mode='update')
+
+    if image.fileinfo(0)['filemode'] != 'update':
+        filename = image.fileinfo(0)['filename']
+        if force:
+            image.close()
+            image = pf.open(filename, mode='update')
+        else:
+            print("Input HDUList from {} was NOT opened in 'update' mode.".format(filename))
+            print("Please set 'force'=True or re-open the file with mode='update'.")
+            raise ValueError
+
+    # Build source catalog for entire image
+    numSci = countExtn(image, extname='SCI')
+    for chip in range(numSci):
+        chip += 1
+        # find sources in image
+        imgarr = image['sci',chip].data#.copy()
+        # apply any DQ array, if available
+        if image.index_of(dqname):
+            dqarr = image[dqname,chip].data
+            dqmask = bitmask.bitfield_to_boolean_mask(dqarr, ignore_flags=good_bits,
+                                                      good_mask_value=False)
+            if grow:
+                dqmask = ndimage.binary_dilation(dqmask, iterations=grow)
+            imgarr[dqmask] = 0. # zero-out all SCI pixels flagged as bad
+        seg_tab, segmap = identify_cosmic_rays(imgarr, **kwargs)
+        # Flag pixels identified as cosmic-rays in the DQ array
+        image[dqname,chip].data[np.where(segmap.data > 0)] += 4096
+
+    return segmap
 
 def extract_sources(img, fwhm=3.0, threshold=None, source_box=7,
                     classify=True, output=None, plot=False, vmax=None):
@@ -437,11 +534,11 @@ def classify_sources(catalog, sources=None):
     if sources is None:
         sources = (0,len(moments))
     num_sources = sources[1] - sources[0]
-    srctype = np.zeros((num_sources,),np.int32)
+    srctype = np.zeros((num_sources+1,),np.int8)
     for src in range(sources[0],sources[1]):
         x,y = np.where(moments[src] == moments[src].max())
         if (x[0] > 1) and (y[0] > 1):
-            srctype[src] = 1
+            srctype[src+1] = 1
 
     return srctype
 
