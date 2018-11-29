@@ -35,7 +35,7 @@ includes:
         * spatial scan
         * any other types of observations which will not have measurable sources in the
           field-of-view like internal calibration observations (eg., DARKS, INTFLATs,...)
-  
+
     #. If input fails this check, it simply returns without updating the WCS of any
        input data.
 
