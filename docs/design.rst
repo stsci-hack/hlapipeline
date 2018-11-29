@@ -76,6 +76,15 @@ includes:
        then apply fit to create updated WCS using :py:func:`drizzlepac.updatehdr`
     #. Apply same solution to both FLT and FLC images, if both types of images are present
 
+.. note ::
+  A **valid fit** should exhibit these qualities:
+
+    * Consistent (within a few sigma) offsets/rotations for all observations in
+      a single HST-pipeline-defined association
+    * RMS is less than 0.5 pixels
+    * rotation should be (much, much??) less than 0.01 degrees
+    * scale should be within 1e-3 of 1. 
+
 #. If no valid fit, iterate with the following changes:
 
     * return to source catalog generation step and derive a new source catalog
