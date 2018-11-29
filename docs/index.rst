@@ -9,6 +9,7 @@ Welcome to HLA in the Pipeline's documentation!
    installation
    design
    usage
+   modules
    contributing
    authors
    history
