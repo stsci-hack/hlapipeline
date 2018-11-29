@@ -33,7 +33,7 @@ Running Tests
 --------------
 This package comes with a number of tests which can be run using data from the HST
 archive as accessed using `astroquery`.  These tests can be run after installing
-this package using the following steps::
+this package using the following steps:
 
   * Define the environment variable `TEST_BIGDATA` which is the location of input
     test data.  It can either be:
