@@ -23,11 +23,10 @@ Code for implementing HLA-type processing in the HST Pipeline
 * Documentation: https://hlapipeline.readthedocs.io.
 
 
-Features
---------
+Installation
+------------
 
 * TODO
-
 
 Running Tests
 --------------
@@ -44,7 +43,7 @@ this package using the following steps:
   * (Optional) change to the tests directory in the hlapipeline package source code
   * Run pytest on the desired tests.  For example::
 
-    pytest -s --basetemp=/internal/1/pytest-hst test_acs_tweak.py >& test_tweak.log
+    pytest -s --basetemp=/internal/1/pytest-hst --bigdata test_align.py >& test_align.log
 
     where the parameters are defined as:
 
