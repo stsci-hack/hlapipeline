@@ -33,6 +33,7 @@ from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord
 from astropy.io import fits as pf
 from astropy.io import ascii
+from astropy.nddata import NDData
 from astropy.convolution import Gaussian2DKernel
 from astropy.stats import gaussian_fwhm_to_sigma
 import photutils
@@ -948,3 +949,55 @@ def find_hist2d_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec
     print('best offset {} based on {} cross-matches'.format(hist2d_offset, nmatches))
 
     return hist2d_offset, seg_xy, ref_xy
+
+
+##############################
+#
+# Functions to support working with Tweakwcs
+#
+##############################
+def build_nddata(image):
+    """ Return a list of NDData objects for all chips in an image.
+
+    Parameters
+    ===========
+    image : filename, HDUList
+        Either filename or HDUList of a single HST observation
+
+    Returns
+    ========
+    ndlist : list
+        List of astropy NDData defined for all chips in input image
+
+    """
+    open_file = False
+    if isinstance(image, str):
+        hdulist = pf.open(image)
+        open_file = True
+    elif isinstance(image, pf.HDUList):
+        hdulist = image
+    else:
+        print("Wrong type of input, {}, for build_nddata...".format(type(image)))
+        raise ValueError
+
+    images = []
+    numsci = countExtn(hdulist)
+    for chip in range(1,numsci+1):
+        im_data = hdulist[('SCI', chip)].data
+        dq_data = hdulist[('DQ', chip)].data
+        w = wcsutil.HSTWCS(hdulist, ('SCI', chip))
+
+        # Below, simply consider non-zero DQ data as invalid.
+        # A more sophisticated approach would use bitmask module.
+        # Also, here we set group ID to a different number for each image,
+        # but for ACS images, for example, we likely would assign
+        # the same group ID to the images corresponding to different
+        # SCI extensions *of the same FITS file* so that they can be
+        # aligned together.
+        img = NDData(data=im_data, mask=dq_data != 0, wcs=w, meta={'chip': chip})
+        images.append(img)
+
+    if open_file:
+        hdulist.close()
+
+    return images
