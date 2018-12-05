@@ -162,7 +162,7 @@ def create_astrometric_catalog(inputs, **pars):
 
     # perform query for this field-of-view
     ref_dict = get_catalog(ra, dec, sr=radius, catalog=catalog)
-    colnames = ('ra','dec', 'mag', 'objID', 'GaiaID')
+    colnames = ('RA','DEC', 'mag', 'objID', 'GaiaID')
     col_types = ('f8', 'f8', 'f4', 'U25', 'U25')
     ref_table = Table(names = colnames, dtype=col_types)
 
@@ -175,8 +175,8 @@ def create_astrometric_catalog(inputs, **pars):
                 continue
         else:
             g = -1  # indicator for no source ID extracted
-        r = float(source['ra'])
-        d = float(source['dec'])
+        r = float(source['RA'])
+        d = float(source['DEC'])
         m = float(source['mag'])
         o = source['objID']
         num_sources += 1
@@ -311,9 +311,47 @@ def find_gsc_offset(image, input_catalog='GSC1', output_catalog='GAIA'):
     return delta_ra,delta_dec
 
 
-def extract_sources(img, fwhm=3.0, threshold=None, source_box=7,
-                    classify=True, output=None, plot=False, vmax=None):
-    """Use photutils to find sources in image based on segmentation."""
+def extract_sources(img, **pars):
+    """Use photutils to find sources in image based on segmentation.
+
+    Parameters
+    ==========
+    fwhm : float
+        Full-width half-maximum (fwhm) of the PSF in pixels.
+        Default: 3.0
+
+    threshold : float
+        Value from the image which serves as the limit for determining sources
+        Default: background+3*rms(background)
+
+    source_box : int
+        Size of box (in pixels) which defines the minimum size of a valid source
+
+    classify : boolean
+        Specify whether or not to apply classification based on invarient moments
+        of each source to determine whether or not a source is likely to be a
+        cosmic-ray, and not include those sources in the final catalog.
+        Default: True
+
+    output : str
+        If specified, write out the catalog of sources to the file with this name
+
+    plot : boolean
+        Specify whether or not to create a plot of the sources on a view of the image
+        Default: False
+
+    vmax : float
+        If plotting the sources, scale the image to this maximum value.
+
+    """
+    fwhm= pars.get('fwhm', 3.0)
+    threshold= pars.get('threshold', None)
+    source_box = pars.get('source_box', 7)
+    classify = pars.get('classify', True)
+    output = pars.get('output', None)
+    plot = pars.get('plot', False)
+    vmax = pars.get('vmax', None)
+
     if threshold is None:
         bkg_estimator = MedianBackground()
         bkg = Background2D(img, (50, 50), filter_size=(3, 3),
@@ -387,6 +425,11 @@ def classify_sources(catalog, sources=None):
     num_sources = sources[1] - sources[0]
     srctype = np.zeros((num_sources,),np.int32)
     for src in range(sources[0],sources[1]):
+        # Protect against spurious detections
+        src_x = catalog[src].xcentroid
+        src_y = catalog[src].ycentroid
+        if np.isnan(src_x) or np.isnan(src_y):
+            continue
         x,y = np.where(moments[src] == moments[src].max())
         if (x[0] > 1) and (y[0] > 1):
             srctype[src] = 1

@@ -1,18 +1,14 @@
 import sys
 import traceback
 import os
-import datetime
 import pytest
-import numpy
 from astropy.table import Table
 
 import tweakwcs
 from base_test import BaseHLATest
-import hlapipeline.utils.catalog_utils as catutils
 import hlapipeline.utils.astrometric_utils as amutils
-#from hlapipeline.alignimages import generate_source_catalogs
-from hlapipeline.utils.astrometric_utils import generate_source_catalogs
-from ci_watson.artifactory_helpers import get_bigdata, compare_outputs
+from hlapipeline.alignimages import generate_source_catalogs
+from ci_watson.artifactory_helpers import get_bigdata
 
 
 class TestPipeline(BaseHLATest):
@@ -66,14 +62,17 @@ class TestPipeline(BaseHLATest):
                 local_files.extend(downloaded_files)
 
             reference_wcs = amutils.build_reference_wcs(local_files)
-            input_catalog_dict = generate_source_catalogs(local_files[0], reference_wcs)
+            input_catalog_dict = generate_source_catalogs([local_files[0]], reference_wcs)
             imcat = input_catalog_dict[local_files[0]]['catalog_table']
+            imcat.rename_column('xcentroid', 'x')
+            imcat.rename_column('ycentroid', 'y')
+            
             # create FITS WCS corrector object
             wcs_corrector = tweakwcs.FITSWCS(reference_wcs)
 
             # get reference catalog as 'truth' files
             reference_catalog = get_bigdata(*truth_path, truth_file, docopy=True)
-            reference_table = Table.read(reference_catalog)
+            reference_table = Table.read(reference_catalog, format='ascii.fast_commented_header')
             num_expected = len(reference_table)
 
             # Perform matching
