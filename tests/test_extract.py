@@ -39,7 +39,8 @@ class TestPipeline(BaseHLATest):
 
     @pytest.mark.parametrize("input_filenames, truth_file",
                                 [('j8ep04lwq','j8ep04lwq_sky.cat'),
-                                 ('J8D806010','j8d806bgq_sky_cat.ecsv')]
+                                 ('J8D806010','j8d806bgq_sky_cat.ecsv'),
+                                 ('IB2V09010', 'ib2v09kzq_sky_cat.ecsv')]
                             )
     def test_generate_catalog(self,input_filenames, truth_file):
         """ Verify whether sources from astrometric catalogs can be extracted from images.
