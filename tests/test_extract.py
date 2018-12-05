@@ -28,6 +28,7 @@ class TestPipeline(BaseHLATest):
 
         Success Criteria:
           * Success criteria for source extraction tests
+            * Initially, source catalog matches >80% of 'truth' catalog sources
             * For observations with >3 astrometric sources, at least 3 sources
             * For observations with 3 or fewer sources, all astrometric sources
               were identified in the image
@@ -37,7 +38,8 @@ class TestPipeline(BaseHLATest):
     ref_loc = ['truth']
 
     @pytest.mark.parametrize("input_filenames, truth_file",
-                                [('j8ep04lwq','j8ep04lwq_sky.cat')]
+                                [('j8ep04lwq','j8ep04lwq_sky.cat'),
+                                 ('J8D806010','j8d806bgq_sky_cat.ecsv')]
                             )
     def test_generate_catalog(self,input_filenames, truth_file):
         """ Verify whether sources from astrometric catalogs can be extracted from images.
@@ -66,13 +68,17 @@ class TestPipeline(BaseHLATest):
             imcat = input_catalog_dict[local_files[0]]['catalog_table']
             imcat.rename_column('xcentroid', 'x')
             imcat.rename_column('ycentroid', 'y')
-            
+
             # create FITS WCS corrector object
             wcs_corrector = tweakwcs.FITSWCS(reference_wcs)
 
             # get reference catalog as 'truth' files
             reference_catalog = get_bigdata(*truth_path, truth_file, docopy=True)
-            reference_table = Table.read(reference_catalog, format='ascii.fast_commented_header')
+            if os.path.basename(reference_catalog).endswith('ecsv'):
+                tab_format = 'ascii.ecsv'
+            else:
+                tab_format = 'ascii.fast_commented_header'
+            reference_table = Table.read(reference_catalog, format=tab_format)
             num_expected = len(reference_table)
 
             # Perform matching
