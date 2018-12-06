@@ -26,13 +26,15 @@ class TestPipeline(BaseHLATest):
           * The WCS information for the input exposures do not get updated in this test.
           * No mosaic gets generated.
 
-        Success Criteria:
-          * Success criteria for source extraction tests
-            * Initially, source catalog matches >80% of 'truth' catalog sources
             * For observations with >3 astrometric sources, at least 3 sources
             * For observations with 3 or fewer sources, all astrometric sources
               were identified in the image
 
+        The following datasets are used in these tests:
+
+            * j8ep04lwq : ACS/SBC dataset with >10 sources (in image and in GAIADR2)
+            * J8D806010 : ACS/WFC dataset dominated by CRs and 15 GAIA sources
+            * IB2V09010 : WFC3/IR dataset with 24 GAIA sources in field-of-view
     """
 
     ref_loc = ['truth']
@@ -45,9 +47,9 @@ class TestPipeline(BaseHLATest):
     def test_generate_catalog(self,input_filenames, truth_file):
         """ Verify whether sources from astrometric catalogs can be extracted from images.
 
-        The following datasets are used in these tests:
-
-            * ACS/SBC dataset with >10 sources (in image and in GAIADR2)
+        Success Criteria
+        -----------------
+            * Initially, source catalog matches >80% of 'truth' catalog sources
 
         """
         self.input_loc = 'catalog_tests'
