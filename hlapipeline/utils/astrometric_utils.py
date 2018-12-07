@@ -162,9 +162,13 @@ def create_astrometric_catalog(inputs, **pars):
 
     # perform query for this field-of-view
     ref_dict = get_catalog(ra, dec, sr=radius, catalog=catalog)
-    colnames = ('RA','DEC', 'mag', 'objID', 'GaiaID')
+    colnames = ('ra','dec', 'mag', 'objID', 'GaiaID')
     col_types = ('f8', 'f8', 'f4', 'U25', 'U25')
     ref_table = Table(names = colnames, dtype=col_types)
+
+    # rename coordinate columns to be consistent with tweakwcs
+    ref_table.rename_column('ra', 'RA')
+    ref_table.rename_column('dec', 'DEC')
 
     # extract just the columns we want...
     num_sources = 0
@@ -175,8 +179,8 @@ def create_astrometric_catalog(inputs, **pars):
                 continue
         else:
             g = -1  # indicator for no source ID extracted
-        r = float(source['RA'])
-        d = float(source['DEC'])
+        r = float(source['ra'])
+        d = float(source['dec'])
         m = float(source['mag'])
         o = source['objID']
         num_sources += 1
