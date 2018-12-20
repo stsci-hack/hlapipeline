@@ -444,8 +444,8 @@ def interpret_fit_rms(tweakwcs_output, reference_catalog):
         output of tweakwcs. Contains sourcelist tables, newly computed WCS info, etc. for every chip of every valid
         input image.
 
-    imagelist : list
-        list of valid processed images to be updated
+    reference_catalog : astropy.Table
+        Table of reference source positions used for the fit
 
     Returns
     -------
