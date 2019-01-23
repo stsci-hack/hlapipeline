@@ -199,6 +199,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     # for alignment purposes.  For filtered data, 'doProcess=0' and 'status=9999' in the table.
     if filteredTable['doProcess'].sum() == 0:
         print("No viable images in filtered table - no processing done.\n")
+        filteredTable[index]['status'] = 1
         return(filteredTable)
 
     # Get the list of all "good" files to use for the alignment
@@ -313,6 +314,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         # update to the meta information with the lowest rms if it is reasonable
         for item in imglist:
             item.meta = item.best_meta
+        filteredTable['status'][:] = 0
 
     info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
     # Update filtered table with number of matched sources and other information
@@ -348,7 +350,6 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     deltaDT = (currentDT - startingDT).total_seconds()
     print('Processing time of [STEP 7]: {} sec'.format(deltaDT))
     startingDT = currentDT
-    filteredTable['status'][:] = 0
     return (filteredTable)
 
 def match_default_fit(imglist, reference_catalog, print_fit_parameters=True):
